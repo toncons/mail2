@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebMail Client - メール送受信アプリ</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 text-slate-800 font-sans antialiased h-screen flex flex-col overflow-hidden">
+
+    <div id="app" class="flex flex-col h-full w-full">
+        
+        <!-- Top Navbar -->
+        <header class="bg-indigo-700 text-white shadow-md flex items-center justify-between px-4 py-3 z-20">
+            <div class="flex items-center space-x-3">
+                <div class="bg-white text-indigo-700 p-2 rounded-lg shadow font-bold flex items-center justify-center">
+                    <i class="fa-solid fa-envelope text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg tracking-wide">WebMail Client</h1>
+                    <p class="text-xs text-indigo-200" id="current-account-display">未接続 (設定を行ってください)</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-3">
+                <button onclick="app.checkMail()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition shadow-sm">
+                    <i class="fa-solid fa-rotate"></i>
+                    <span class="hidden sm:inline">受信確認</span>
+                </button>
+                <button onclick="app.openSettingsModal()" class="bg-indigo-800 hover:bg-indigo-900 text-white px-3 py-2 rounded-lg text-sm font-medium flex items-center space-x-2 transition shadow-sm">
+                    <i class="fa-solid fa-gear"></i>
+                    <span class="hidden sm:inline">サーバー設定</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <div class="flex flex-1 overflow-hidden relative">
+
+            <!-- Sidebar Navigation -->
+            <aside class="w-20 md:w-64 bg-white border-r border-slate-200 flex flex-col justify-between z-10">
+                <div class="p-3 space-y-1">
+                    <button onclick="app.openComposeModal()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-xl shadow transition flex items-center justify-center md:justify-start space-x-2 mb-4">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                        <span class="hidden md:inline">新規作成</span>
+                    </button>
+
+                    <div class="space-y-0.5">
+                        <a href="#" onclick="app.switchFolder('inbox')" id="nav-inbox" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium bg-indigo-50 text-indigo-700 transition">
+                            <div class="flex items-center space-x-3">
+                                <i class="fa-solid fa-inbox w-5 text-center"></i>
+                                <span class="hidden md:inline">受信トレイ</span>
+                            </div>
+                            <span id="badge-inbox" class="bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full">0</span>
+                        </a>
+                        <a href="#" onclick="app.switchFolder('sent')" id="nav-sent" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+                            <div class="flex items-center space-x-3">
+                                <i class="fa-solid fa-paper-plane w-5 text-center"></i>
+                                <span class="hidden md:inline">送信済み</span>
+                            </div>
+                            <span id="badge-sent" class="bg-slate-200 text-slate-700 text-xs px-2 py-0.5 rounded-full">0</span>
+                        </a>
+                        <a href="#" onclick="app.switchFolder('drafts')" id="nav-drafts" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+                            <div class="flex items-center space-x-3">
+                                <i class="fa-solid fa-file-pen w-5 text-center"></i>
+                                <span class="hidden md:inline">下書き</span>
+                            </div>
+                            <span id="badge-drafts" class="bg-slate-200 text-slate-700 text-xs px-2 py-0.5 rounded-full">0</span>
+                        </a>
+                        <a href="#" onclick="app.switchFolder('trash')" id="nav-trash" class="flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition">
+                            <div class="flex items-center space-x-3">
+                                <i class="fa-solid fa-trash w-5 text-center"></i>
+                                <span class="hidden md:inline">ゴミ箱</span>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Server Protocol Indicator -->
+                <div class="p-3 border-t border-slate-200 bg-slate-50 hidden md:block">
+                    <div class="text-xs text-slate-500 font-semibold mb-1">プロトコル設定</div>
+                    <div class="flex items-center justify-between text-xs text-slate-700">
+                        <span id="sidebar-proto">IMAP / SMTP</span>
+                        <span id="sidebar-status" class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800">未設定</span>
+                    </div>
+                </div>
+            </aside>
+
+            <!-- Mail List Pane -->
+            <section class="w-full md:w-96 bg-white border-r border-slate-200 flex flex-col z-0">
+                <!-- Search & Filter Header -->
+                <div class="p-3 border-b border-slate-200 flex items-center space-x-2 bg-slate-50">
+                    <div class="relative flex-1">
+                        <span class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                            <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                        </span>
+                        <input type="text" id="search-input" oninput="app.handleSearch(this.value)" placeholder="メールを検索..." class="w-full pl-9 pr-4 py-1.5 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                </div>
+
+                <!-- Mail Items Container -->
+                <div id="mail-list-container" class="flex-1 overflow-y-auto divide-y divide-slate-100">
+                    <!-- Dynamic Items loaded here -->
+                </div>
+            </section>
+
+            <!-- Mail Reader / Detail Pane -->
+            <main id="mail-reader-pane" class="hidden md:flex flex-1 flex-col bg-white overflow-hidden relative">
+                <div id="no-mail-selected" class="flex flex-col items-center justify-center flex-1 text-slate-400 p-6 text-center">
+                    <div class="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-3 text-slate-300">
+                        <i class="fa-solid fa-envelope-open text-2xl"></i>
+                    </div>
+                    <p class="text-base font-medium text-slate-600">メールが選択されていません</p>
+                    <p class="text-sm text-slate-400 mt-1">左側のリストからメールを選択するか、新着メールを確認してください。</p>
+                </div>
+
+                <div id="mail-detail-view" class="hidden flex-col h-full overflow-y-auto">
+                    <!-- Action Toolbar -->
+                    <div class="px-6 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between sticky top-0 z-10 shadow-sm">
+                        <div class="flex items-center space-x-2">
+                            <button onclick="app.replyMail()" class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-medium rounded-lg shadow-sm transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-reply text-xs"></i>
+                                <span>返信</span>
+                            </button>
+                            <button onclick="app.forwardMail()" class="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-medium rounded-lg shadow-sm transition flex items-center space-x-1.5">
+                                <i class="fa-solid fa-share text-xs"></i>
+                                <span>転送</span>
+                            </button>
+                        </div>
+                        <div class="flex items-center space-x-2">
+                            <button onclick="app.toggleStarCurrent()" id="btn-star" class="p-2 text-slate-400 hover:text-amber-500 rounded-lg transition" title="スター付き">
+                                <i class="fa-solid fa-star"></i>
+                            </button>
+                            <button onclick="app.deleteCurrentMail()" class="p-2 text-slate-400 hover:text-rose-600 rounded-lg transition" title="削除">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Mail Header Info -->
+                    <div class="p-6 border-b border-slate-200">
+                        <h2 id="reader-subject" class="text-xl font-bold text-slate-900 mb-4">件名がここに表示されます</h2>
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div id="reader-avatar" class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-700 font-bold flex items-center justify-center text-sm">
+                                    A
+                                </div>
+                                <div>
+                                    <div class="font-semibold text-slate-900" id="reader-sender">送信者名 &lt;sender@example.com&gt;</div>
+                                    <div class="text-xs text-slate-500" id="reader-recipient">宛先: me@example.com</div>
+                                </div>
+                            </div>
+                            <div class="text-xs text-slate-500" id="reader-date">2026年6月7日 12:34</div>
+                        </div>
+                    </div>
+
+                    <!-- Mail Body Content -->
+                    <div id="reader-body" class="p-6 text-slate-800 text-sm leading-relaxed whitespace-pre-wrap flex-1 bg-white">
+                        メール本文がここに表示されます。
+                    </div>
+                </div>
+            </main>
+
+        </div>
+    </div>
+
+    <div id="settings-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="px-6 py-4 bg-indigo-700 text-white flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-server"></i>
+                    <h3 class="font-bold text-lg">メールサーバー & アカウント設定</h3>
+                </div>
+                <button onclick="app.closeSettingsModal()" class="text-indigo-200 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-4 flex-1">
+                <!-- User Credentials -->
+                <div class="border-b border-slate-200 pb-4">
+                    <h4 class="text-xs font-bold uppercase text-slate-400 tracking-wider mb-3">ユーザー情報</h4>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">お名前 (表示名)</label>
+                            <input type="text" id="cfg-name" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="山田 太郎">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-700 mb-1">メールアドレス</label>
+                            <input type="email" id="cfg-email" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="taro@example.com">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Incoming Server (POP3 / IMAP) -->
+                <div class="border-b border-slate-200 pb-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h4 class="text-xs font-bold uppercase text-slate-400 tracking-wider">受信サーバー設定</h4>
+                        <div class="inline-flex rounded-lg p-0.5 bg-slate-100 border border-slate-200 text-xs">
+                            <button type="button" onclick="app.setProtocol('IMAP')" id="proto-imap-btn" class="px-3 py-1 rounded-md font-medium bg-indigo-600 text-white transition">IMAP</button>
+                            <button type="button" onclick="app.setProtocol('POP3')" id="proto-pop3-btn" class="px-3 py-1 rounded-md font-medium text-slate-600 transition">POP3</button>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="col-span-2">
+                                <label class="block text-xs font-medium text-slate-700 mb-1" id="incoming-host-label">IMAP ホスト名</label>
+                                <input type="text" id="cfg-in-host" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="imap.example.com">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-700 mb-1">ポート番号</label>
+                                <input type="number" id="cfg-in-port" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" value="993">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-700 mb-1">ユーザー名</label>
+                                <input type="text" id="cfg-in-user" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="user@example.com">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-700 mb-1">パスワード</label>
+                                <input type="password" id="cfg-in-pass" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="••••••••">
+                            </div>
+                        </div>
+
+                        <div class="flex items-center space-x-2 pt-1">
+                            <input type="checkbox" id="cfg-in-ssl" checked class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                            <label for="cfg-in-ssl" class="text-xs text-slate-700 font-medium">セキュア接続 (SSL/TLS) を使用する</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Outgoing Server (SMTP) -->
+                <div>
+                    <h4 class="text-xs font-bold uppercase text-slate-400 tracking-wider mb-3">送信サーバー設定 (SMTP)</h4>
+                    <div class="space-y-3">
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="col-span-2">
+                                <label class="block text-xs font-medium text-slate-700 mb-1">SMTP ホスト名</label>
+                                <input type="text" id="cfg-out-host" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="smtp.example.com">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-700 mb-1">ポート番号</label>
+                                <input type="number" id="cfg-out-port" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" value="465">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-700 mb-1">SMTP ユーザー名</label>
+                                <input type="text" id="cfg-out-user" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="user@example.com">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-700 mb-1">SMTP パスワード</label>
+                                <input type="password" id="cfg-out-pass" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="••••••••">
+                            </div>
+                        </div>
+
+                        <div class="flex items-center space-x-2 pt-1">
+                            <input type="checkbox" id="cfg-out-ssl" checked class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                            <label for="cfg-out-ssl" class="text-xs text-slate-700 font-medium">SMTP認証 & SSL/TLS を使用する</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                <button onclick="app.testConnection()" type="button" class="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-medium rounded-lg shadow-sm transition flex items-center space-x-2">
+                    <i class="fa-solid fa-plug text-indigo-600"></i>
+                    <span>接続テスト</span>
+                </button>
+                <div class="flex items-center space-x-2">
+                    <button onclick="app.closeSettingsModal()" type="button" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-lg transition">キャンセル</button>
+                    <button onclick="app.saveSettings()" type="button" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow transition">保存して接続</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="compose-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+            <div class="px-6 py-4 bg-indigo-700 text-white flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    <h3 class="font-bold text-lg">新規メール作成</h3>
+                </div>
+                <button onclick="app.closeComposeModal()" class="text-indigo-200 hover:text-white transition">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-4 flex-1">
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">宛先 (To)</label>
+                    <input type="email" id="compose-to" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="recipient@example.com">
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1">件名 (Subject)</label>
+                    <input type="text" id="compose-subject" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="件名を入力してください">
+                </div>
+                <div class="flex-1 flex flex-col">
+                    <label class="block text-xs font-medium text-slate-700 mb-1">本文 (Body)</label>
+                    <textarea id="compose-body" rows="8" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none" placeholder="メールの本文を入力してください..."></textarea>
+                </div>
+            </div>
+
+            <div class="px-6 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                <button onclick="app.saveDraft()" type="button" class="px-4 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 text-sm font-medium rounded-lg shadow-sm transition">
+                    下書き保存
+                </button>
+                <div class="flex items-center space-x-2">
+                    <button onclick="app.closeComposeModal()" type="button" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-sm font-medium rounded-lg transition">キャンセル</button>
+                    <button onclick="app.sendMail()" type="button" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg shadow transition flex items-center space-x-2">
+                        <i class="fa-solid fa-paper-plane text-xs"></i>
+                        <span>送信する</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col space-y-2"></div>
+
+    <script>
+        class MailClientApp {
+            constructor() {
+                this.settings = {
+                    name: "山田 太郎",
+                    email: "taro@example.com",
+                    protocol: "IMAP", // IMAP or POP3
+                    inHost: "imap.example.com",
+                    inPort: 993,
+                    inUser: "taro@example.com",
+                    inPass: "secret",
+                    inSsl: true,
+                    outHost: "smtp.example.com",
+                    outPort: 465,
+                    outUser: "taro@example.com",
+                    outPass: "secret",
+                    outSsl: true,
+                    isConfigured: false
+                };
+
+                this.currentFolder = 'inbox';
+                this.selectedMailId = null;
+                this.searchQuery = '';
+
+                // Initial Mock Database
+                this.emails = [
+                    {
+                        id: 'mail-1',
+                        folder: 'inbox',
+                        sender: '鈴木 花子 <hanako@example.com>',
+                        recipient: 'taro@example.com',
+                        subject: '来週のプロジェクト定例会議について',
+                        body: 'お疲れ様です。鈴木です。\n\n来週のプロジェクト進捗定例会議の件ですが、予定通り水曜日の14時からの実施で問題ないでしょうか？\n資料の事前共有もお願いいたします。\n\nよろしくお願いいたします。',
+                        date: '2026-06-07 10:15',
+                        read: false,
+                        starred: true
+                    },
+                    {
+                        id: 'mail-2',
+                        folder: 'inbox',
+                        sender: 'サポートセンター <support@example-service.net>',
+                        recipient: 'taro@example.com',
+                        subject: '【重要】アカウントセキュリティ通知',
+                        body: 'いつもサービスをご利用いただきありがとうございます。\n新しいデバイスからのログイン検知をお知らせいたします。\n\n身に覚えがない場合は、直ちにパスワードを変更してください。',
+                        date: '2026-06-06 18:40',
+                        read: true,
+                        starred: false
+                    },
+                    {
+                        id: 'mail-3',
+                        folder: 'sent',
+                        sender: '山田 太郎 <taro@example.com>',
+                        recipient: 'partner@client.co.jp',
+                        subject: 'お見積書の送付につきまして',
+                        body: 'いつも大変お世話になっております。山田です。\nご依頼いただきましたお見積書を添付にて送付いたします。\nご確認のほどよろしくお願い申し上げます。',
+                        date: '2026-06-05 14:20',
+                        read: true,
+                        starred: false
+                    }
+                ];
+
+                this.init();
+            }
+
+            init() {
+                this.loadSavedSettings();
+                this.render();
+            }
+
+            loadSavedSettings() {
+                const saved = localStorage.getItem('webmail_settings');
+                if (saved) {
+                    try {
+                        this.settings = JSON.parse(saved);
+                        this.updateHeaderAccountDisplay();
+                    } catch (e) {
+                        console.error('Failed to parse saved settings', e);
+                    }
+                }
+            }
+
+            saveSettings() {
+                this.settings.name = document.getElementById('cfg-name').value;
+                this.settings.email = document.getElementById('cfg-email').value;
+                this.settings.inHost = document.getElementById('cfg-in-host').value;
+                this.settings.inPort = parseInt(document.getElementById('cfg-in-port').value) || 993;
+                this.settings.inUser = document.getElementById('cfg-in-user').value;
+                this.settings.inPass = document.getElementById('cfg-in-pass').value;
+                this.settings.inSsl = document.getElementById('cfg-in-ssl').checked;
+                
+                this.settings.outHost = document.getElementById('cfg-out-host').value;
+                this.settings.outPort = parseInt(document.getElementById('cfg-out-port').value) || 465;
+                this.settings.outUser = document.getElementById('cfg-out-user').value;
+                this.settings.outPass = document.getElementById('cfg-out-pass').value;
+                this.settings.outSsl = document.getElementById('cfg-out-ssl').checked;
+
+                this.settings.isConfigured = true;
+
+                localStorage.setItem('webmail_settings', JSON.stringify(this.settings));
+                this.updateHeaderAccountDisplay();
+                this.closeSettingsModal();
+                this.showToast('設定を保存し、サーバーに接続しました', 'success');
+            }
+
+            updateHeaderAccountDisplay() {
+                const display = document.getElementById('current-account-display');
+                const statusBadge = document.getElementById('sidebar-status');
+                const protoDisplay = document.getElementById('sidebar-proto');
+
+                if (this.settings.isConfigured && this.settings.email) {
+                    display.textContent = `${this.settings.name} <${this.settings.email}>`;
+                    statusBadge.textContent = '接続済み';
+                    statusBadge.className = 'inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-emerald-100 text-emerald-800';
+                    protoDisplay.textContent = `${this.settings.protocol} / SMTP`;
+                } else {
+                    display.textContent = '未設定 (設定を行ってください)';
+                    statusBadge.textContent = '未設定';
+                    statusBadge.className = 'inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800';
+                }
+            }
+
+            setProtocol(proto) {
+                this.settings.protocol = proto;
+                const imapBtn = document.getElementById('proto-imap-btn');
+                const pop3Btn = document.getElementById('proto-pop3-btn');
+                const hostLabel = document.getElementById('incoming-host-label');
+                const portInput = document.getElementById('cfg-in-port');
+
+                if (proto === 'IMAP') {
+                    imapBtn.className = 'px-3 py-1 rounded-md font-medium bg-indigo-600 text-white transition';
+                    pop3Btn.className = 'px-3 py-1 rounded-md font-medium text-slate-600 transition';
+                    hostLabel.textContent = 'IMAP ホスト名';
+                    portInput.value = '993';
+                } else {
+                    pop3Btn.className = 'px-3 py-1 rounded-md font-medium bg-indigo-600 text-white transition';
+                    imapBtn.className = 'px-3 py-1 rounded-md font-medium text-slate-600 transition';
+                    hostLabel.textContent = 'POP3 ホスト名';
+                    portInput.value = '995';
+                }
+            }
+
+            openSettingsModal() {
+                document.getElementById('cfg-name').value = this.settings.name || '';
+                document.getElementById('cfg-email').value = this.settings.email || '';
+                document.getElementById('cfg-in-host').value = this.settings.inHost || '';
+                document.getElementById('cfg-in-port').value = this.settings.inPort || 993;
+                document.getElementById('cfg-in-user').value = this.settings.inUser || '';
+                document.getElementById('cfg-in-pass').value = this.settings.inPass || '';
+                document.getElementById('cfg-in-ssl').checked = !!this.settings.inSsl;
+
+                document.getElementById('cfg-out-host').value = this.settings.outHost || '';
+                document.getElementById('cfg-out-port').value = this.settings.outPort || 465;
+                document.getElementById('cfg-out-user').value = this.settings.outUser || '';
+                document.getElementById('cfg-out-pass').value = this.settings.outPass || '';
+                document.getElementById('cfg-out-ssl').checked = !!this.settings.outSsl;
+
+                this.setProtocol(this.settings.protocol || 'IMAP');
+                document.getElementById('settings-modal').classList.remove('hidden');
+            }
+
+            closeSettingsModal() {
+                document.getElementById('settings-modal').classList.add('hidden');
+            }
+
+            openComposeModal(prefill = {}) {
+                document.getElementById('compose-to').value = prefill.to || '';
+                document.getElementById('compose-subject').value = prefill.subject || '';
+                document.getElementById('compose-body').value = prefill.body || '';
+                document.getElementById('compose-modal').classList.remove('hidden');
+            }
+
+            closeComposeModal() {
+                document.getElementById('compose-modal').classList.add('hidden');
+            }
+
+            testConnection() {
+                this.showToast('サーバーと通信テスト中...', 'info');
+                setTimeout(() => {
+                    this.showToast('接続成功: POP3/IMAPおよびSMTPサーバー応答を確認しました', 'success');
+                }, 1000);
+            }
+
+            checkMail() {
+                if (!this.settings.isConfigured) {
+                    this.showToast('はじめにサーバー設定を行ってください', 'error');
+                    this.openSettingsModal();
+                    return;
+                }
+
+                this.showToast(`${this.settings.protocol}サーバーから新着メールを確認中...`, 'info');
+                setTimeout(() => {
+                    // Simulate incoming mock mail
+                    const newMail = {
+                        id: 'mail-' + Date.now(),
+                        folder: 'inbox',
+                        sender: 'お知らせロボット <info@external-system.jp>',
+                        recipient: this.settings.email,
+                        subject: '【新着】定期レポート通知 (シミュレーション)',
+                        body: '外部メールサーバーからの自動受信テストメールです。\n現在の時刻: ' + new Date().toLocaleString() + '\n\n問題なくメールの送受信が行えています。',
+                        date: this.getFormattedDate(),
+                        read: false,
+                        starred: false
+                    };
+                    this.emails.unshift(newMail);
+                    this.render();
+                    this.showToast('新着メールを1件受信しました', 'success');
+                }, 1200);
+            }
+
+            sendMail() {
+                const to = document.getElementById('compose-to').value.trim();
+                const subject = document.getElementById('compose-subject').value.trim();
+                const body = document.getElementById('compose-body').value.trim();
+
+                if (!to || !subject) {
+                    this.showToast('宛先と件名は必須項目です', 'error');
+                    return;
+                }
+
+                this.showToast('SMTPサーバー経由でメールを送信中...', 'info');
+                setTimeout(() => {
+                    const sentMail = {
+                        id: 'mail-' + Date.now(),
+                        folder: 'sent',
+                        sender: `${this.settings.name} <${this.settings.email}>`,
+                        recipient: to,
+                        subject: subject,
+                        body: body,
+                        date: this.getFormattedDate(),
+                        read: true,
+                        starred: false
+                    };
+                    this.emails.unshift(sentMail);
+                    this.closeComposeModal();
+                    this.render();
+                    this.showToast('メールを送信しました', 'success');
+                }, 1000);
+            }
+
+            saveDraft() {
+                const to = document.getElementById('compose-to').value.trim();
+                const subject = document.getElementById('compose-subject').value.trim();
+                const body = document.getElementById('compose-body').value.trim();
+
+                const draftMail = {
+                    id: 'mail-' + Date.now(),
+                    folder: 'drafts',
+                    sender: `${this.settings.name} <${this.settings.email}>`,
+                    recipient: to || '(宛先なし)',
+                    subject: subject || '(件名なし)',
+                    body: body,
+                    date: this.getFormattedDate(),
+                    read: true,
+                    starred: false
+                };
+                this.emails.unshift(draftMail);
+                this.closeComposeModal();
+                this.render();
+                this.showToast('下書きに保存しました', 'success');
+            }
+
+            switchFolder(folder) {
+                this.currentFolder = folder;
+                this.selectedMailId = null;
+                
+                // Update navigation highlights
+                ['inbox', 'sent', 'drafts', 'trash'].forEach(f => {
+                    const el = document.getElementById(`nav-${f}`);
+                    if (f === folder) {
+                        el.className = 'flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium bg-indigo-50 text-indigo-700 transition';
+                    } else {
+                        el.className = 'flex items-center justify-between px-3 py-2.5 rounded-lg text-sm font-medium text-slate-600 hover:bg-slate-100 transition';
+                    }
+                });
+
+                this.renderMailList();
+                this.renderMailReader();
+            }
+
+            handleSearch(query) {
+                this.searchQuery = query.toLowerCase();
+                this.renderMailList();
+            }
+
+            selectMail(id) {
+                const mail = this.emails.find(m => m.id === id);
+                if (mail) {
+                    mail.read = true;
+                    this.selectedMailId = id;
+                    this.renderMailList();
+                    this.renderMailReader();
+                }
+            }
+
+            toggleStarCurrent() {
+                const mail = this.emails.find(m => m.id === this.selectedMailId);
+                if (mail) {
+                    mail.starred = !mail.starred;
+                    this.renderMailList();
+                    this.renderMailReader();
+                }
+            }
+
+            deleteCurrentMail() {
+                const mail = this.emails.find(m => m.id === this.selectedMailId);
+                if (mail) {
+                    if (this.currentFolder === 'trash') {
+                        // Permanent delete
+                        this.emails = this.emails.filter(m => m.id !== this.selectedMailId);
+                    } else {
+                        // Move to trash
+                        mail.folder = 'trash';
+                    }
+                    this.selectedMailId = null;
+                    this.render();
+                    this.showToast('メールをゴミ箱に移動しました', 'info');
+                }
+            }
+
+            replyMail() {
+                const mail = this.emails.find(m => m.id === this.selectedMailId);
+                if (mail) {
+                    const cleanSender = mail.sender.includes('<') ? mail.sender.split('<')[1].replace('>', '') : mail.sender;
+                    this.openComposeModal({
+                        to: cleanSender,
+                        subject: `Re: ${mail.subject}`,
+                        body: `\n\n---------------------------------\n> ${mail.body.split('\n').join('\n> ')}`
+                    });
+                }
+            }
+
+            forwardMail() {
+                const mail = this.emails.find(m => m.id === this.selectedMailId);
+                if (mail) {
+                    this.openComposeModal({
+                        to: '',
+                        subject: `Fwd: ${mail.subject}`,
+                        body: `\n\n---------- Forwarded message ---------\nFrom: ${mail.sender}\nDate: ${mail.date}\nSubject: ${mail.subject}\nTo: ${mail.recipient}\n\n${mail.body}`
+                    });
+                }
+            }
+
+            getFormattedDate() {
+                const now = new Date();
+                const m = String(now.getMonth() + 1).padStart(2, '0');
+                const d = String(now.getDate()).padStart(2, '0');
+                const h = String(now.getHours()).padStart(2, '0');
+                const min = String(now.getMinutes()).padStart(2, '0');
+                return `${now.getFullYear()}-${m}-${d} ${h}:${min}`;
+            }
+
+            showToast(message, type = 'info') {
+                const container = document.getElementById('toast-container');
+                const toast = document.createElement('div');
+                
+                let bg = 'bg-slate-800 text-white';
+                if (type === 'success') bg = 'bg-emerald-600 text-white';
+                if (type === 'error') bg = 'bg-rose-600 text-white';
+                if (type === 'info') bg = 'bg-indigo-600 text-white';
+
+                toast.className = `${bg} px-4 py-3 rounded-xl shadow-lg text-sm font-medium flex items-center space-x-2 transition transform translate-y-2 opacity-0 duration-300`;
+                
+                let icon = 'fa-circle-info';
+                if (type === 'success') icon = 'fa-circle-check';
+                if (type === 'error') icon = 'fa-triangle-exclamation';
+
+                toast.innerHTML = `<i class="fa-solid ${icon}"></i><span>${message}</span>`;
+                container.appendChild(toast);
+
+                setTimeout(() => {
+                    toast.classList.remove('translate-y-2', 'opacity-0');
+                }, 10);
+
+                setTimeout(() => {
+                    toast.classList.add('translate-y-2', 'opacity-0');
+                    setTimeout(() => toast.remove(), 300);
+                }, 3500);
+            }
+
+            render() {
+                this.updateBadges();
+                this.renderMailList();
+                this.renderMailReader();
+            }
+
+            updateBadges() {
+                const inboxCount = this.emails.filter(m => m.folder === 'inbox' && !m.read).length;
+                const sentCount = this.emails.filter(m => m.folder === 'sent').length;
+                const draftsCount = this.emails.filter(m => m.folder === 'drafts').length;
+
+                document.getElementById('badge-inbox').textContent = inboxCount;
+                document.getElementById('badge-inbox').style.display = inboxCount > 0 ? 'inline-block' : 'none';
+                
+                document.getElementById('badge-sent').textContent = sentCount;
+                document.getElementById('badge-drafts').textContent = draftsCount;
+            }
+
+            renderMailList() {
+                const container = document.getElementById('mail-list-container');
+                
+                let filtered = this.emails.filter(m => m.folder === this.currentFolder);
+                if (this.searchQuery) {
+                    filtered = filtered.filter(m => 
+                        m.subject.toLowerCase().includes(this.searchQuery) ||
+                        m.sender.toLowerCase().includes(this.searchQuery) ||
+                        m.body.toLowerCase().includes(this.searchQuery)
+                    );
+                }
+
+                if (filtered.length === 0) {
+                    container.innerHTML = `
+                        <div class="p-8 text-center text-slate-400">
+                            <i class="fa-solid fa-folder-open text-3xl mb-2 text-slate-300"></i>
+                            <p class="text-sm">メールはありません</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                container.innerHTML = filtered.map(mail => {
+                    const isSelected = mail.id === this.selectedMailId;
+                    const bgClass = isSelected ? 'bg-indigo-50 border-l-4 border-indigo-600' : (mail.read ? 'bg-white hover:bg-slate-50' : 'bg-slate-50/80 font-semibold hover:bg-slate-100');
+                    
+                    return `
+                        <div onclick="app.selectMail('${mail.id}')" class="p-3.5 cursor-pointer transition border-b border-slate-100 ${bgClass}">
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="text-xs text-slate-900 truncate max-w-[180px]">${mail.sender}</span>
+                                <span class="text-[10px] text-slate-400">${mail.date.slice(5, 16)}</span>
+                            </div>
+                            <div class="text-sm text-slate-800 truncate mb-1">${mail.subject}</div>
+                            <div class="flex items-center justify-between">
+                                <p class="text-xs text-slate-500 truncate max-w-[220px]">${mail.body}</p>
+                                <div class="flex items-center space-x-1">
+                                    ${mail.starred ? '<i class="fa-solid fa-star text-amber-400 text-xs"></i>' : ''}
+                                    ${!mail.read ? '<span class="w-2 h-2 rounded-full bg-indigo-600"></span>' : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+
+            renderMailReader() {
+                const noMailEl = document.getElementById('no-mail-selected');
+                const detailEl = document.getElementById('mail-detail-view');
+
+                if (!this.selectedMailId) {
+                    noMailEl.classList.remove('hidden');
+                    noMailEl.classList.add('flex');
+                    detailEl.classList.remove('flex');
+                    detailEl.classList.add('hidden');
+                    return;
+                }
+
+                const mail = this.emails.find(m => m.id === this.selectedMailId);
+                if (!mail) return;
+
+                noMailEl.classList.remove('flex');
+                noMailEl.classList.add('hidden');
+                detailEl.classList.remove('hidden');
+                detailEl.classList.add('flex');
+
+                document.getElementById('reader-subject').textContent = mail.subject;
+                document.getElementById('reader-sender').innerHTML = mail.sender;
+                document.getElementById('reader-recipient').textContent = `宛先: ${mail.recipient}`;
+                document.getElementById('reader-date').textContent = mail.date;
+                document.getElementById('reader-body').textContent = mail.body;
+
+                // Avatar letter
+                const senderName = mail.sender.split(' ')[0] || 'A';
+                document.getElementById('reader-avatar').textContent = senderName.charAt(0).toUpperCase();
+
+                // Star button state
+                const starBtn = document.getElementById('btn-star');
+                if (mail.starred) {
+                    starBtn.className = 'p-2 text-amber-500 hover:text-amber-600 rounded-lg transition';
+                } else {
+                    starBtn.className = 'p-2 text-slate-400 hover:text-amber-500 rounded-lg transition';
+                }
+            }
+        }
+
+        // Initialize application instance
+        const app = new MailClientApp();
+    </script>
+</body>
+</html>
